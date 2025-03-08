@@ -1,2 +1,4 @@
 __pycache__/
 kaggle.json
+generated_datasets/
+generated_image_datasets/
