@@ -4,9 +4,9 @@ import argparse
 import pandas as pd
 from typing import Dict, List, Union
 
-from text_dataset_generator import DatasetOrchestrator as TextDatasetOrchestrator
-from image_dataset_generator import DatasetOrchestrator as ImageDatasetOrchestrator
-from dataset_search_agent import DatasetSearchAgent
+from text_gen import DatasetOrchestrator as TextDatasetOrchestrator
+from image_gen import DatasetOrchestrator as ImageDatasetOrchestrator
+from search_data import DatasetSearchAgent
 
 TEMP_STORAGE = "generated_datasets"
 os.makedirs(TEMP_STORAGE, exist_ok=True)
