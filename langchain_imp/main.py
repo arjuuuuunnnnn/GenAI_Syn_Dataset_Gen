@@ -2,6 +2,7 @@ import os
 import re
 import argparse
 from typing import Dict, List, Union, Optional, Any
+from langchain_community.document_loaders import hugging_face_dataset
 import pandas as pd
 from langchain.llms import OpenAI
 from langchain.chains import LLMChain
@@ -15,7 +16,7 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain.document_loaders import TextLoader, CSVLoader
 from langchain.callbacks.manager import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-
+from langchain.llms import HunggingFaceHub
 
 from image_generator import ImageDatasetGenerator
 from text_generator import TextDatasetGenerator
@@ -98,11 +99,12 @@ class DatasetSchemaParser:
 
 class DatasetRAG:
     
-    def __init__(self, api_key: Optional[str] = None):
-        self.embeddings = OpenAIEmbeddings(openai_api_key=api_key)
+    def __init__(self, huggingface_api_token: Optional[str] = None):
+        self.embeddings = None
         self.wiki_retriever = WikipediaRetriever()
         self.vectorstore = None
         self.retriever = None
+        self.huggingface_api_token = huggingface_api_token
         
     def initialize_from_documents(self, documents_path: str):
         text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
@@ -183,7 +185,7 @@ class DatasetRouterAgent:
 
     
     def __init__(self, api_key: Optional[str] = None):
-        self.text_generator = TextDatasetGenerator(api_key=api_key)
+        self.text_generator = TextDatasetGenerator(huggingface_api_token=hugging_face_token)
         self.image_generator = ImageDatasetGenerator()
         self.dataset_searcher = DatasetSearcher()
         self.rag = DatasetRAG(api_key=api_key)
@@ -192,6 +194,7 @@ class DatasetRouterAgent:
         self.initialize_agent()
     
     def initialize_agent(self):
+        from langchain.llms import HunggingFaceHub
 
         llm = OpenAI(
             temperature=0,
