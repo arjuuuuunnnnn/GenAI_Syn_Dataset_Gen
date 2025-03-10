@@ -129,3 +129,6 @@ class ImageDatasetGenerator:
         
         metadata_path = os.path.join(dataset_path, "metadata.json")
         with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=4)  # Fixed: Added indented block
+        
+        return dataset_path

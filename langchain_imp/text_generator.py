@@ -3,7 +3,7 @@ import random
 import json
 from typing import Dict, List, Tuple, Union, Optional, Any
 import pandas as pd
-from langchain.llms import HuggingFaceHub
+from langchain_community.llms import HuggingFaceHub
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 

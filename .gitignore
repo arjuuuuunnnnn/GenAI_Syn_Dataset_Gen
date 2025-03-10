@@ -4,3 +4,5 @@ generated_datasets/
 generated_image_datasets/
 .env
 langchain_imp/.env
+langchain_imp/__pycache__/
+langchain_imp/generated_datasets/

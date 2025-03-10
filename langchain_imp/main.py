@@ -2,21 +2,20 @@ import os
 import re
 import argparse
 from typing import Dict, List, Union, Optional, Any
-from langchain_community.document_loaders import hugging_face_dataset
 import pandas as pd
-from langchain.llms import OpenAI
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain.agents import AgentType, initialize_agent, Tool
 from langchain.memory import ConversationBufferMemory
-from langchain.retrievers import WikipediaRetriever
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_community.retrievers import WikipediaRetriever
+from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.document_loaders import TextLoader, CSVLoader
+from langchain_community.document_loaders import TextLoader, CSVLoader
 from langchain.callbacks.manager import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain.llms import HunggingFaceHub
+from langchain_community.llms import OpenAI
+from langchain_community.llms import HuggingFaceHub
 
 from image_generator import ImageDatasetGenerator
 from text_generator import TextDatasetGenerator
@@ -99,12 +98,11 @@ class DatasetSchemaParser:
 
 class DatasetRAG:
     
-    def __init__(self, huggingface_api_token: Optional[str] = None):
-        self.embeddings = None
+    def __init__(self, api_key: Optional[str] = None):
+        self.embeddings = OpenAIEmbeddings(openai_api_key=api_key) if api_key else None
         self.wiki_retriever = WikipediaRetriever()
         self.vectorstore = None
         self.retriever = None
-        self.huggingface_api_token = huggingface_api_token
         
     def initialize_from_documents(self, documents_path: str):
         text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
@@ -136,7 +134,6 @@ class DatasetRAG:
         return "\n\n".join(contexts)
     
     def enrich_dataset(self, data: List[Dict], query: str) -> List[Dict]:
-
         enriched_data = data.copy()
         
         enrichment_topic = re.sub(r'\b(generate|create|make|produce)\b.*\bdata(set)?\b', '', query, flags=re.IGNORECASE).strip()
@@ -165,7 +162,6 @@ class DatasetRAG:
         llm = OpenAI(temperature=0.7)
         chain = LLMChain(llm=llm, prompt=prompt)
         
-
         sample_data = str(enriched_data[:3])
         insights_text = chain.run(context=context, data_sample=sample_data)
         
@@ -182,20 +178,16 @@ class DatasetRAG:
         return enriched_data
 
 class DatasetRouterAgent:
-
     
     def __init__(self, api_key: Optional[str] = None):
-        self.text_generator = TextDatasetGenerator(huggingface_api_token=hugging_face_token)
+        self.text_generator = TextDatasetGenerator(huggingface_api_token=os.environ.get("HUGGINGFACE_API_TOKEN"))
         self.image_generator = ImageDatasetGenerator()
         self.dataset_searcher = DatasetSearcher()
         self.rag = DatasetRAG(api_key=api_key)
         
-
         self.initialize_agent()
     
     def initialize_agent(self):
-        from langchain.llms import HunggingFaceHub
-
         llm = OpenAI(
             temperature=0,
             callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
@@ -340,7 +332,6 @@ class DatasetRouterAgent:
                 with_data=True
             )
             
-
             if "enrich" in query.lower() or "enhance" in query.lower():
                 enriched_data = self.rag.enrich_dataset(data, query)
                 
@@ -361,7 +352,6 @@ class DatasetRouterAgent:
             return f"Error generating text dataset: {str(e)}"
 
     def _provide_help(self) -> str:
-
         return (
             "I'm a dataset agent built with LangChain that can help you with the following tasks:\n\n"
             "1. Search for existing datasets: 'Search for datasets about climate change'\n"
