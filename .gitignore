@@ -3,5 +3,5 @@ kaggle.json
 .env
 generated_dataset.json
 generated_images/
-chromadb/
+chroma_db/
 knowledge_docs/
