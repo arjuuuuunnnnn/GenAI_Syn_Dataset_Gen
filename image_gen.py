@@ -8,16 +8,16 @@ from dotenv import load_dotenv
 from io import BytesIO
 from PIL import Image
 
-# Load environment variables
+
 load_dotenv()
 
-# Configure Gemini (free via Google AI Studio)
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 gemini_model = genai.GenerativeModel('gemini-2.0-flash')
 
-# Hugging Face Config (free tier)
-HF_API_TOKEN = os.getenv("HF_API_TOKEN")  # Optional but recommended
+
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 HF_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
 NUM_IMAGES = 4
 OUTPUT_DIR = "generated_images"
@@ -67,7 +67,6 @@ def generate_with_huggingface(state: AgentState):
         print(f"\n🖼️ Generating image {i+1}/{len(prompts)}...")
         
         try:
-            # Using Hugging Face Inference API (free tier)
             API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
             headers = {"Authorization": f"Bearer {HF_API_TOKEN}"} if HF_API_TOKEN else {}
             
@@ -124,10 +123,8 @@ def format_output(state: AgentState):
 def extract_json(text):
     """Robust JSON extraction from Gemini responses"""
     try:
-        # Try parsing directly
         return json.loads(text)
     except:
-        # Fallback: Extract first JSON object/array
         for start_char, end_char in [('[', ']'), ('{', '}')]:
             try:
                 start = text.index(start_char)
@@ -137,7 +134,6 @@ def extract_json(text):
                 continue
     return []
 
-# Build the workflow
 workflow = StateGraph(AgentState)
 workflow.add_node("analyze", analyze_with_gemini)
 workflow.add_node("generate_prompts", create_prompts_with_gemini)

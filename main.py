@@ -10,10 +10,9 @@ import chromadb
 import image_gen
 import text_gen
 
-# Load environment variables
 load_dotenv()
 
-# Configure Gemini
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise ValueError("Please set GEMINI_API_KEY in your .env file")
@@ -21,22 +20,21 @@ if not GEMINI_API_KEY:
 genai.configure(api_key=GEMINI_API_KEY)
 router_model = genai.GenerativeModel('gemini-2.0-flash')
 
-# Directory setup
 os.makedirs("./knowledge_docs", exist_ok=True)
 os.makedirs("./chroma_db", exist_ok=True)
 
-# RAG System using Sentence Transformers and ChromaDB
+
 class RAGSystem:
     def __init__(self):
         try:
             print("Loading embedding model...")
             self.embed_model = SentenceTransformer('all-MiniLM-L6-v2')
             
-            # Initialize ChromaDB
+
             self.db = chromadb.PersistentClient(path="./chroma_db")
             self.chroma_collection = self.db.get_or_create_collection("knowledge_base")
             
-            # Load documents (only needs to be done once)
+
             if len(self.chroma_collection.get()['ids']) == 0:
                 self._initialize_knowledge_base()
             
@@ -84,18 +82,17 @@ class RAGSystem:
             """
         }
         
-        # Save sample documents
+        
         documents = []
         ids = []
         embeddings = []
         metadata = []
         
         for i, (filename, content) in enumerate(sample_content.items()):
-            # Save to file for reference
             with open(f"./knowledge_docs/{filename}", "w") as f:
                 f.write(content)
             
-            # Add to ChromaDB
+            
             doc_id = f"doc_{i}"
             embedding = self.embed_model.encode(content).tolist()
             
@@ -104,7 +101,7 @@ class RAGSystem:
             embeddings.append(embedding)
             metadata.append({"source": filename})
         
-        # Add all documents to ChromaDB
+        
         self.chroma_collection.add(
             documents=documents,
             embeddings=embeddings,
@@ -116,17 +113,16 @@ class RAGSystem:
 
     def query(self, question: str) -> str:
         """Query the knowledge base"""
-        # Embed the query
+        
         query_embedding = self.embed_model.encode(question).tolist()
         
-        # Search for similar documents
+        
         results = self.chroma_collection.query(
             query_embeddings=[query_embedding],
             n_results=2
         )
         
         if results and len(results['documents']) > 0:
-            # Combine the top results
             context = "\n\n".join(results['documents'][0])
             return context
         else:
@@ -139,7 +135,7 @@ class RouterState(TypedDict):
     rag_context: Annotated[str, "Relevant information retrieved from knowledge base"]
     output: str
 
-# Initialize RAG system
+
 try:
     rag_system = RAGSystem()
     rag_enabled = True
@@ -158,7 +154,6 @@ def enhance_with_rag(state: RouterState):
     print("\n🔍 Consulting knowledge base...")
     
     try:
-        # Get relevant context from RAG system
         rag_query = (
             f"Based on the following user request, provide information about which "
             f"generation type (text or image) is most appropriate and why: {state['user_query']}"
@@ -183,7 +178,6 @@ def determine_agent_type(state: RouterState):
     
     print("\n🤔 Analyzing request...")
     
-    # Basic prompt if RAG is not available
     basic_prompt = """
     Analyze this user query and determine if it's requesting:
     1. Text/data generation - respond with 'text'
@@ -195,7 +189,6 @@ def determine_agent_type(state: RouterState):
     User Query: 
     """
     
-    # Enhanced prompt with RAG
     rag_prompt = """
     Analyze this user query with the retrieved system knowledge:
     
@@ -220,13 +213,11 @@ def determine_agent_type(state: RouterState):
         response = router_model.generate_content(prompt)
         agent_type = response.text.strip().lower()
         
-        # Validate agent_type
         if agent_type not in ["text", "image", "unknown"]:
             print(f"⚠️ Invalid classification: '{agent_type}', defaulting to 'unknown'")
             agent_type = "unknown"
             reason = "Classification result was invalid"
         else:
-            # Generate a reason for the classification separately
             reason_prompt = f"""
             Explain briefly why this query: "{user_query}" 
             should be classified as {agent_type} generation.
@@ -257,12 +248,10 @@ def route_to_text_agent(state: RouterState):
     print(f"Reason: {reason}")
     
     try:
-        # Enhance the query with the RAG context if available
         enhanced_query = user_query
         if rag_enabled and state["rag_context"]:
             enhanced_query = f"{user_query}\n\nAdditional context: {state['rag_context']}"
         
-        # Invoke the text_gen agent directly from the imported module
         result = text_gen.agent.invoke({"user_query": enhanced_query})
         
         output = f"""
@@ -288,12 +277,10 @@ def route_to_image_agent(state: RouterState):
     print(f"Reason: {reason}")
     
     try:
-        # Enhance the query with the RAG context if available
         enhanced_query = user_query
         if rag_enabled and state["rag_context"]:
             enhanced_query = f"{user_query}\n\nAdditional context: {state['rag_context']}"
         
-        # Invoke the image_gen agent directly from the imported module
         result = image_gen.agent.invoke({"user_query": enhanced_query})
         
         output = f"""
@@ -345,20 +332,20 @@ def handle_unknown_query(state: RouterState):
     
     return {"output": output}
 
-# Build the enhanced router workflow
+
 workflow = StateGraph(RouterState)
 
-# Add nodes
+
 workflow.add_node("enhance_with_rag", enhance_with_rag)
 workflow.add_node("determine_agent", determine_agent_type)
 workflow.add_node("text_gen", route_to_text_agent)
 workflow.add_node("image_gen", route_to_image_agent)
 workflow.add_node("unknown", handle_unknown_query)
 
-# Add edges with RAG enhancement first
+
 workflow.add_edge("enhance_with_rag", "determine_agent")
 
-# Add conditional branching based on agent type
+
 workflow.add_conditional_edges(
     "determine_agent",
     lambda state: state["agent_type"],
@@ -369,12 +356,10 @@ workflow.add_conditional_edges(
     }
 )
 
-# Connect all endpoints
 workflow.add_edge("text_gen", END)
 workflow.add_edge("image_gen", END)
 workflow.add_edge("unknown", END)
 
-# Set entry point
 workflow.set_entry_point("enhance_with_rag")
 router_agent = workflow.compile()
 
@@ -403,7 +388,6 @@ if __name__ == "__main__":
                 
             print("\n🚀 Processing your request...")
             
-            # Initialize default state
             initial_state = {
                 "user_query": user_query,
                 "agent_type": "unknown",
@@ -412,10 +396,8 @@ if __name__ == "__main__":
                 "rag_context": ""
             }
             
-            # Invoke the router agent
             result = router_agent.invoke(initial_state)
             
-            # Display results
             print("\n" + "="*60)
             print("📊 ROUTING DETAILS:")
             print(f"• Agent Type: {result['agent_type'].upper()}")

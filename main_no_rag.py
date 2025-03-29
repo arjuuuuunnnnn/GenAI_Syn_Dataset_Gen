@@ -6,10 +6,9 @@ from dotenv import load_dotenv
 import image_gen
 import text_gen
 
-# Load environment variables
 load_dotenv()
 
-# Configure Gemini
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise ValueError("Please set GEMINI_API_KEY in your .env file")
@@ -40,9 +39,8 @@ def classify_query(state: RouterState):
     response = router_model.generate_content(prompt)
     query_type = response.text.strip().lower()
     
-    # Ensure we get a valid response
+
     if query_type not in ["image", "text"]:
-        # Default to text if classification is unclear
         print(f"⚠️ Classification unclear: '{query_type}', defaulting to text")
         query_type = "text"
     
@@ -54,7 +52,6 @@ def route_to_image_agent(state: RouterState):
     user_query = state["user_query"]
     print("\n🖼️ Routing to image generation agent...")
     
-    # Invoke the image generation agent
     result = image_gen.agent.invoke({"user_query": user_query})
     
     return {"response": f"IMAGE GENERATION RESULT:\n{result['output']}"}
@@ -64,12 +61,12 @@ def route_to_text_agent(state: RouterState):
     user_query = state["user_query"]
     print("\n📝 Routing to text data generation agent...")
     
-    # Invoke the text generation agent
+    
     result = text_gen.agent.invoke({"user_query": user_query})
     
     return {"response": f"TEXT DATA GENERATION RESULT:\n{result['output']}"}
 
-# Build the router workflow
+
 def should_route_to_image(state: RouterState):
     """Conditional routing based on query type"""
     return state["query_type"] == "image"
@@ -79,7 +76,7 @@ workflow.add_node("classify", classify_query)
 workflow.add_node("image_agent", route_to_image_agent)
 workflow.add_node("text_agent", route_to_text_agent)
 
-# Add conditional branching
+
 workflow.add_conditional_edges(
     "classify",
     should_route_to_image,
