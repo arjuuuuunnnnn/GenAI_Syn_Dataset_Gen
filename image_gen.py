@@ -1,174 +1,158 @@
-import os
-import re
-import csv
-import json
-import random
-from typing import Dict, List, Tuple
-import pandas as pd
-from PIL import Image
-import numpy as np
+from typing import TypedDict, Annotated, List
+from langgraph.graph import StateGraph, END
+import google.generativeai as genai
 import requests
+import os
+import json
+from dotenv import load_dotenv
 from io import BytesIO
+from PIL import Image
 
+# Load environment variables
+load_dotenv()
 
-from diffusers import StableDiffusionPipeline
-import torch
+# Configure Gemini (free via Google AI Studio)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+genai.configure(api_key=GEMINI_API_KEY)
+gemini_model = genai.GenerativeModel('gemini-2.0-flash')
 
-TEMP_STORAGE = "generated_datasets"
-os.makedirs(TEMP_STORAGE, exist_ok=True)
+# Hugging Face Config (free tier)
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")  # Optional but recommended
+HF_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
+NUM_IMAGES = 4
+OUTPUT_DIR = "generated_images"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-class DatasetSchema:
-    def __init__(self, query: str):
-        self.columns = self._parse_query(query)
-        
-    def _parse_query(self, query: str) -> List[Dict]:
-        columns = []
-        patterns = [
-            r'"(\w+)"\s*\((\w+)(?:\s*resolution:\s*([\d\-x]+))?(?:\s*options:\s*([\w\s,]+))?\)',
-            r'column\s+(\w+)\s+as\s+(\w+)(?:\s+with\s+(.*))?'
-        ]
-        
-        for match in re.finditer(patterns[0], query):
-            name, dtype = match.group(1), match.group(2).lower()
-            col_def = {'name': name, 'type': dtype}
-            
-            if dtype == 'image':
-                if match.group(3):
-                    resolution = match.group(3)
-                    width, height = map(int, resolution.split('x'))
-                    col_def.update({'width': width, 'height': height})
-                else:
-                    col_def.update({'width': 512, 'height': 512})
-            elif dtype == 'category' and match.group(4):
-                options = [x.strip() for x in match.group(4).split(',')]
-                col_def['options'] = options
-                
-            columns.append(col_def)
-            
-        return columns
+class AgentState(TypedDict):
+    user_query: str
+    dataset_description: str
+    image_prompts: List[str]
+    generated_images: List[dict]
+    output: str
 
-class ImageDataGenerator:
-    def __init__(self):
-        self.model = StableDiffusionPipeline.from_pretrained(
-            "runwayml/stable-diffusion-v1-5", 
-            torch_dtype=torch.float16
-        )
-        if torch.cuda.is_available():
-            self.model = self.model.to("cuda")
-        
-    def generate_image(self, prompt: str, width: int = 512, height: int = 512) -> Image.Image:
-        """Generate an image based on the prompt using Stable Diffusion."""
-        try:
-            result = self.model(prompt, width=width, height=height)
-            return result.images[0]
-        except Exception as e:
-            print(f"Error generating image: {e}")
-            return Image.new('RGB', (width, height), color = (73, 109, 137))
+def analyze_with_gemini(state: AgentState):
+    """Use Gemini to understand the user's request"""
+    user_query = state["user_query"]
+    print("\n🔍 Analyzing your request with Gemini...")
     
-    @staticmethod
-    def generate_category(col_def: Dict) -> str:
-        return random.choice(col_def.get('options', ['Unknown']))
-
-class DatasetOrchestrator:
-    def __init__(self):
-        self.image_gen = ImageDataGenerator()
-        
-    def generate_dataset(self, query: str, num_rows: int = 10, format: str = 'folder') -> str:
-        schema = DatasetSchema(query)
-        data = []
-        
-        prompts_pattern = r'prompts:\s*\[(.*?)\]'
-        prompts_match = re.search(prompts_pattern, query)
-        
-        if prompts_match:
-            prompts_str = prompts_match.group(1)
-            prompts = [p.strip(' "\'') for p in prompts_str.split(',')]
-        else:
-            prompts = ["a photo of a cat", "a landscape photo", "portrait of a person"]
-        
-        dataset_id = f"image_dataset_{hash(str(schema.columns))}"
-        dataset_path = os.path.join(TEMP_STORAGE, dataset_id)
-        os.makedirs(dataset_path, exist_ok=True)
-        
-        metadata = {
-            "dataset_id": dataset_id,
-            "num_images": num_rows,
-            "schema": [col for col in schema.columns],
-            "prompts": prompts,
-            "images": []
-        }
-        
-        print(f"Generating {num_rows} images...")
-        
-        for i in range(num_rows):
-            row = {}
-            image_metadata = {}
-            
-            prompt = random.choice(prompts)
-            
-            for col in schema.columns:
-                if col['type'] == 'image':
-                    width = col.get('width', 512)
-                    height = col.get('height', 512)
-                    
-                    custom_prompt = f"{prompt}, high quality, detailed"
-                    
-                    image = self.image_gen.generate_image(custom_prompt, width, height)
-                    
-                    image_filename = f"{i:04d}_{col['name']}.png"
-                    image_path = os.path.join(dataset_path, image_filename)
-                    image.save(image_path)
-                    
-                    row[col['name']] = image_path
-                    image_metadata[col['name']] = {
-                        "path": image_path,
-                        "prompt": custom_prompt,
-                        "width": width,
-                        "height": height
-                    }
-                    
-                elif col['type'] == 'category':
-                    value = self.image_gen.generate_category(col)
-                    row[col['name']] = value
-                    image_metadata[col['name']] = value
-            
-            data.append(row)
-            metadata["images"].append(image_metadata)
-            
-            if (i + 1) % 5 == 0 or i == num_rows - 1:
-                print(f"Generated {i + 1}/{num_rows} images")
-        
-        metadata_path = os.path.join(dataset_path, "metadata.json")
-        with open(metadata_path, 'w') as f:
-            json.dump(metadata, f, indent=2)
-        
-        csv_path = os.path.join(dataset_path, "index.csv")
-        pd.DataFrame(data).to_csv(csv_path, index=False)
-        
-        if format == 'zip':
-            import shutil
-            zip_path = f"{dataset_path}.zip"
-            shutil.make_archive(dataset_path, 'zip', dataset_path)
-            return zip_path
-            
-        return dataset_path
-
-if __name__ == "__main__":
-    orchestrator = DatasetOrchestrator()
-    
-    user_query = '''
-    Generate 10 images of dataset with columns:
-    - "main_image" (image resolution: 512x512)
-    - "style" (category options: realistic, cartoon, sketch, painting)
-    - "background" (category options: indoor, outdoor, studio, abstract)
-    prompts: ["a dog playing in a park", "a cat sleeping on a couch", "a bird on a tree"]
-    '''
-    
-    dataset_path = orchestrator.generate_dataset(
-        query=user_query,
-        num_rows=10,
-        format='folder'
+    response = gemini_model.generate_content(
+        f"Analyze this image request and return JSON with description, styles, and requirements:\n{user_query}\n"
+        "Example: {'description':'...','styles':[...],'requirements':[...]}"
     )
     
-    print(f"Image dataset generated at: {dataset_path}")
-    print(f"A total of 10 images were created with metadata")
+    analysis = extract_json(response.text)
+    return {
+        "dataset_description": analysis.get("description", user_query),
+        "image_prompts": []
+    }
+
+def create_prompts_with_gemini(state: AgentState):
+    """Generate detailed SDXL prompts using Gemini"""
+    description = state["dataset_description"]
+    print(f"\n💡 Generating {NUM_IMAGES} prompts with Gemini...")
+    
+    response = gemini_model.generate_content(
+        f"Create {NUM_IMAGES} Stable Diffusion prompts based on:\n{description}\n"
+        "Return ONLY a JSON array of strings."
+    )
+    
+    return {"image_prompts": extract_json(response.text)}
+
+def generate_with_huggingface(state: AgentState):
+    """Generate images using Hugging Face's free API"""
+    prompts = state["image_prompts"]
+    images = []
+    
+    for i, prompt in enumerate(prompts):
+        print(f"\n🖼️ Generating image {i+1}/{len(prompts)}...")
+        
+        try:
+            # Using Hugging Face Inference API (free tier)
+            API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
+            headers = {"Authorization": f"Bearer {HF_API_TOKEN}"} if HF_API_TOKEN else {}
+            
+            response = requests.post(
+                API_URL,
+                headers=headers,
+                json={"inputs": prompt}
+            )
+            
+            if response.status_code == 200:
+                img = Image.open(BytesIO(response.content))
+                filename = f"image_{i+1}.png"
+                img.save(f"{OUTPUT_DIR}/{filename}")
+                
+                images.append({
+                    "prompt": prompt,
+                    "path": f"{OUTPUT_DIR}/{filename}"
+                })
+            else:
+                print(f"Error: {response.text}")
+                images.append({
+                    "prompt": prompt,
+                    "error": response.text
+                })
+        
+        except Exception as e:
+            print(f"Failed to generate image: {e}")
+            images.append({
+                "prompt": prompt,
+                "error": str(e)
+            })
+    
+    return {"generated_images": images}
+
+def format_output(state: AgentState):
+    """Prepare final report"""
+    metadata = {
+        "description": state["dataset_description"],
+        "images": state["generated_images"]
+    }
+    
+    with open(f"{OUTPUT_DIR}/metadata.json", "w") as f:
+        json.dump(metadata, f)
+    
+    success_count = sum(1 for img in state["generated_images"] if "error" not in img)
+    
+    return {"output": f"""
+    🎉 Completed!
+    - Successful generations: {success_count}/{len(state['generated_images'])}
+    - Output directory: {OUTPUT_DIR}/
+    - First prompt: {state['image_prompts'][0][:70]}...
+    """}
+
+def extract_json(text):
+    """Robust JSON extraction from Gemini responses"""
+    try:
+        # Try parsing directly
+        return json.loads(text)
+    except:
+        # Fallback: Extract first JSON object/array
+        for start_char, end_char in [('[', ']'), ('{', '}')]:
+            try:
+                start = text.index(start_char)
+                end = text.rindex(end_char) + 1
+                return json.loads(text[start:end])
+            except:
+                continue
+    return []
+
+# Build the workflow
+workflow = StateGraph(AgentState)
+workflow.add_node("analyze", analyze_with_gemini)
+workflow.add_node("generate_prompts", create_prompts_with_gemini)
+workflow.add_node("generate_images", generate_with_huggingface)
+workflow.add_node("format", format_output)
+
+workflow.add_edge("analyze", "generate_prompts")
+workflow.add_edge("generate_prompts", "generate_images")
+workflow.add_edge("generate_images", "format")
+workflow.add_edge("format", END)
+
+workflow.set_entry_point("analyze")
+agent = workflow.compile()
+
+if __name__ == "__main__":
+    query = input("Describe the images you want to generate: ")
+    result = agent.invoke({"user_query": query})
+    print(result["output"])
