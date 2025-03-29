@@ -3,9 +3,13 @@ from langgraph.graph import StateGraph, END
 import google.generativeai as genai
 import os
 import json
+from dotenv import load_dotenv
 
-# Configure Gemini API - make sure to replace with your actual API key
-GEMINI_API_KEY = "AIzaSyB6Y32JmIt9QLVXZzdqLU3Z4D8o597ybcg"
+load_dotenv()
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise ValueError("Please set GEMINI_API_KEY in your .env file")
 
 genai.configure(api_key=GEMINI_API_KEY)
 
