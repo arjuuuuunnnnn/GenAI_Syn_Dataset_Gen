@@ -15,7 +15,6 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 try:
     model = genai.GenerativeModel('gemini-2.0-flash')
-    # Test the API connection immediately
     test_response = model.generate_content("Hello")
     if not test_response.text:
         raise ConnectionError("Gemini API connection failed - no response text")
@@ -27,12 +26,11 @@ class AgentState(TypedDict):
     dataset_description: Annotated[str, "Description of the dataset to be generated"]
     dataset_schema: Annotated[dict, "Schema for the dataset"]
     generated_dataset: Annotated[List[dict], "The generated dataset entries"]
-    output: Annotated[str, "The final output to return to the user"]  # Added output field
+    output: Annotated[str, "The final output to return to the user"]
 
 def extract_json_from_response(response_text):
     """Helper function to extract JSON from Gemini response"""
     try:
-        # Remove markdown code blocks if present
         cleaned = response_text.strip()
         if cleaned.startswith('```json'):
             cleaned = cleaned[7:]
@@ -40,7 +38,6 @@ def extract_json_from_response(response_text):
             cleaned = cleaned[:-3]
         cleaned = cleaned.strip()
         
-        # Parse the JSON
         return json.loads(cleaned)
     except json.JSONDecodeError as e:
         print(f"JSON parsing error: {str(e)}")
@@ -51,7 +48,7 @@ def parse_user_query(state: AgentState):
     """Parse the user query to understand what dataset they want"""
     try:
         user_query = state["user_query"]
-        print(f"\n[DEBUG] Parsing user query: {user_query}")  # Debug print
+        print(f"\n[DEBUG] Parsing user query: {user_query}")
         
         prompt = f"""
         Analyze this dataset generation request and return ONLY valid JSON:
@@ -65,13 +62,13 @@ def parse_user_query(state: AgentState):
         """
         
         response = model.generate_content(prompt)
-        print(f"[DEBUG] Raw API response: {response.text}")  # Debug print
+        print(f"[DEBUG] Raw API response: {response.text}")
         
         analysis = extract_json_from_response(response.text)
         if not analysis:
             raise ValueError("Failed to parse API response as JSON")
         
-        print(f"[DEBUG] Parsed analysis: {analysis}")  # Debug print
+        print(f"[DEBUG] Parsed analysis: {analysis}")
         
         return {
             "dataset_description": analysis.get("data_type", user_query),
@@ -95,7 +92,7 @@ def generate_dataset_schema(state: AgentState):
     try:
         description = state["dataset_description"]
         initial_schema = state["dataset_schema"]
-        print(f"\n[DEBUG] Generating schema from: {description}")  # Debug print
+        print(f"\n[DEBUG] Generating schema from: {description}")
         
         prompt = f"""
         Create a complete dataset schema from this description. Return ONLY valid JSON:
