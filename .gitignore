@@ -2,4 +2,4 @@ __pycache__/
 kaggle.json
 .env
 generated_dataset.json
-./generated_images/
+generated_images/
