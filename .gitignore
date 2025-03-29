@@ -1,6 +1,7 @@
 __pycache__/
 kaggle.json
-generated_datasets/
-generated_image_datasets/
 .env
-langchain_imp/.env
+generated_dataset.json
+generated_images/
+chroma_db/
+knowledge_docs/
