@@ -1,9 +1,10 @@
-from typing import TypedDict, Annotated, List
+from typing import TypedDict, Annotated, List, Dict, Any
 from langgraph.graph import StateGraph, END
 import google.generativeai as genai
 import os
 import json
 from dotenv import load_dotenv
+from data_memory import GeneratedDataMemory
 
 load_dotenv()
 
@@ -12,6 +13,13 @@ if not GEMINI_API_KEY:
     raise ValueError("Please set GEMINI_API_KEY in your .env file")
 
 genai.configure(api_key=GEMINI_API_KEY)
+
+# Initialize memory system
+try:
+    memory_system = GeneratedDataMemory()
+except Exception as e:
+    print(f"Warning: Memory system initialization failed: {str(e)}")
+    memory_system = None
 
 try:
     model = genai.GenerativeModel('gemini-2.0-flash')
@@ -26,6 +34,7 @@ class AgentState(TypedDict):
     dataset_description: Annotated[str, "Description of the dataset to be generated"]
     dataset_schema: Annotated[dict, "Schema for the dataset"]
     generated_dataset: Annotated[List[dict], "The generated dataset entries"]
+    memory_id: Annotated[str, "ID of the stored memory entry"]
     output: Annotated[str, "The final output to return to the user"]
 
 def extract_json_from_response(response_text):
@@ -114,13 +123,13 @@ def generate_dataset_schema(state: AgentState):
         """
         
         response = model.generate_content(prompt)
-        print(f"[DEBUG] Raw schema response: {response.text}")  # Debug print
+        print(f"[DEBUG] Raw schema response: {response.text}")
         
         enhanced_schema = extract_json_from_response(response.text)
         if not enhanced_schema:
             raise ValueError("Failed to parse schema response")
         
-        print(f"[DEBUG] Generated schema: {enhanced_schema}")  # Debug print
+        print(f"[DEBUG] Generated schema: {enhanced_schema}")
         return {"dataset_schema": enhanced_schema}
     except Exception as e:
         print(f"[ERROR] in generate_dataset_schema: {str(e)}")
@@ -131,7 +140,7 @@ def generate_dataset_entries(state: AgentState):
     try:
         schema = state["dataset_schema"]
         num_entries = 5  # Reduced for testing
-        print(f"\n[DEBUG] Generating {num_entries} entries from schema")  # Debug print
+        print(f"\n[DEBUG] Generating {num_entries} entries from schema")
         
         prompt = f"""
         Generate {num_entries} dataset entries from this schema. Return ONLY valid JSON array:
@@ -146,13 +155,13 @@ def generate_dataset_entries(state: AgentState):
         """
         
         response = model.generate_content(prompt)
-        print(f"[DEBUG] Raw data response: {response.text}")  # Debug print
+        print(f"[DEBUG] Raw data response: {response.text}")
         
         dataset = extract_json_from_response(response.text)
         if not dataset or not isinstance(dataset, list):
             raise ValueError("Invalid dataset format")
         
-        print(f"[DEBUG] First entry: {dataset[0] if dataset else 'empty'}")  # Debug print
+        print(f"[DEBUG] First entry: {dataset[0] if dataset else 'empty'}")
         return {"generated_dataset": dataset}
     except Exception as e:
         print(f"[ERROR] in generate_dataset_entries: {str(e)}")
@@ -166,7 +175,7 @@ def validate_dataset(state: AgentState):
         if not dataset:
             return {"generated_dataset": []}
         
-        print(f"\n[DEBUG] Validating {len(dataset)} entries")  # Debug print
+        print(f"\n[DEBUG] Validating {len(dataset)} entries")
         
         prompt = f"""
         Validate this dataset against its schema. Return ONLY valid JSON:
@@ -181,7 +190,7 @@ def validate_dataset(state: AgentState):
         """
         
         response = model.generate_content(prompt)
-        print(f"[DEBUG] Raw validation response: {response.text}")  # Debug print
+        print(f"[DEBUG] Raw validation response: {response.text}")
         
         validation = extract_json_from_response(response.text)
         if not validation:
@@ -196,11 +205,36 @@ def validate_dataset(state: AgentState):
         print(f"[ERROR] in validate_dataset: {str(e)}")
         return {"generated_dataset": dataset}
 
+def store_to_memory(state: AgentState):
+    """Store the generated dataset in memory system"""
+    try:
+        description = state["dataset_description"]
+        schema = state["dataset_schema"]
+        dataset = state["generated_dataset"]
+        
+        print("\n[DEBUG] Storing dataset to memory system")
+        
+        if memory_system:
+            memory_id = memory_system.store_text_data(
+                description=description,
+                schema=schema,
+                generated_data=dataset
+            )
+            print(f"[DEBUG] Dataset stored with ID: {memory_id}")
+            return {"memory_id": memory_id}
+        else:
+            print("[WARNING] Memory system not available")
+            return {"memory_id": None}
+    except Exception as e:
+        print(f"[ERROR] in store_to_memory: {str(e)}")
+        return {"memory_id": None}
+
 def format_output(state: AgentState):
     """Format the final output for the user"""
     try:
         schema = state["dataset_schema"]
         dataset = state["generated_dataset"]
+        memory_id = state.get("memory_id")
         
         output = f"""
         # Generated Dataset
@@ -222,6 +256,10 @@ def format_output(state: AgentState):
         
         output += f"\n\nTotal entries generated: {len(dataset) if dataset else 0}"
         
+        if memory_id:
+            output += f"\n\nDataset stored in memory with ID: {memory_id}"
+            output += "\nYou can refer to this dataset in future queries."
+        
         # Save to file
         try:
             with open("generated_dataset.json", "w") as f:
@@ -229,7 +267,7 @@ def format_output(state: AgentState):
                     "schema": schema,
                     "data": dataset if dataset else []
                 }, f, indent=2)
-            print("[DEBUG] Dataset saved to file")  # Debug print
+            print("[DEBUG] Dataset saved to file")
         except Exception as e:
             print(f"[ERROR] saving dataset: {str(e)}")
         
@@ -244,12 +282,14 @@ workflow.add_node("parse_query", parse_user_query)
 workflow.add_node("generate_schema", generate_dataset_schema)
 workflow.add_node("generate_entries", generate_dataset_entries)
 workflow.add_node("validate_data", validate_dataset)
+workflow.add_node("store_memory", store_to_memory)
 workflow.add_node("format_output", format_output)
 
 workflow.add_edge("parse_query", "generate_schema")
 workflow.add_edge("generate_schema", "generate_entries")
 workflow.add_edge("generate_entries", "validate_data")
-workflow.add_edge("validate_data", "format_output")
+workflow.add_edge("validate_data", "store_memory")
+workflow.add_edge("store_memory", "format_output")
 workflow.add_edge("format_output", END)
 workflow.set_entry_point("parse_query")
 
