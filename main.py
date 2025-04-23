@@ -259,6 +259,23 @@ def route_based_on_type(state: RouterState):
     else:
         return "UNKNOWN"
 
+# Define pass-through nodes for routing targets
+def text_node(state):
+    """Pass-through node for text routing"""
+    return state
+
+def image_node(state):
+    """Pass-through node for image routing"""
+    return state
+
+def memory_node(state):
+    """Pass-through node for memory routing"""
+    return state
+
+def unknown_node(state):
+    """Pass-through node for unknown routing"""
+    return state
+
 # Define the workflow
 workflow = StateGraph(RouterState)
 
@@ -272,11 +289,16 @@ workflow.add_node("handle_unknown", handle_unknown_query)
 
 # Set up the workflow edges
 workflow.add_edge("analyze_intent", "enhance_context")
-workflow.add_edge("enhance_context", route_based_on_type)
-workflow.add_edge("TEXT", "route_to_text")
-workflow.add_edge("IMAGE", "route_to_image")
-workflow.add_edge("MEMORY", "handle_memory")
-workflow.add_edge("UNKNOWN", "handle_unknown")
+workflow.add_conditional_edges(
+    "enhance_context",
+    route_based_on_type,
+    {
+        "TEXT": "route_to_text",
+        "IMAGE": "route_to_image",
+        "MEMORY": "handle_memory",
+        "UNKNOWN": "handle_unknown"
+    }
+)
 
 # Connect all outputs to END
 workflow.add_edge("route_to_text", END)

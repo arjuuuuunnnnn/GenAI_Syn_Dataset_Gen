@@ -5,3 +5,6 @@ generated_dataset.json
 generated_images/
 chroma_db/
 knowledge_docs/
+output_history/
+memory_db/
+
