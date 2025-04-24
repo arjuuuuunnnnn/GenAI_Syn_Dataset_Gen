@@ -34,8 +34,8 @@ A powerful system for generating text datasets, creating images, and remembering
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/content-generation-system.git
-cd content-generation-system
+git clone https://github.com/arjuuuuunnnnn/GenAI_Syn_Dataset_Gen.git
+cd GenAI_Syn_Dataset_Gen
 
 # Install dependencies
 pip install -r requirements.txt
