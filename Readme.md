@@ -93,8 +93,3 @@ The system consists of the following components:
 - Generated images are saved in `./generated_images`
 - Dataset outputs are saved to JSON files for easy access
 
-## 🌈 Happy Creating!
-
-Let your imagination run wild with this helpful content generation system! Whether you need sample datasets for development, creative visuals, or just want to explore the possibilities, this system has you covered.
-
-Enjoy your creative journey! 🚀✨
