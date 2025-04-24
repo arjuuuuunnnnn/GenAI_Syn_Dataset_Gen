@@ -133,7 +133,13 @@ def handle_memory_query(state: RouterState):
         return {"memory_response": response, "output": response}
     
     try:
-        memory_response = rag_system.answer_memory_query(user_query)
+        # Check if this is a follow-up to a previous conversation
+        conversation_result = rag_system.retrieve_conversation_context(user_query)
+        if conversation_result["success"]:
+            memory_response = rag_system.answer_with_conversation_context(user_query)
+        else:
+            # Direct memory query
+            memory_response = rag_system.answer_memory_query(user_query)
         
         print(f"📋 Memory response: {memory_response[:100]}...")
         
@@ -254,7 +260,7 @@ def route_based_on_type(state: RouterState):
         return "TEXT"
     elif agent_type == "image":
         return "IMAGE"
-    elif agent_type == "memory":
+    elif agent_type == "memory" or agent_type == "content_question":
         return "MEMORY"
     else:
         return "UNKNOWN"

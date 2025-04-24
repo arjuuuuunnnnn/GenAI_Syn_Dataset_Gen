@@ -1,4 +1,3 @@
-# enhanced_memory_rag.py
 from typing import Dict, List, Any, Optional
 import os
 import json
@@ -124,6 +123,8 @@ class EnhancedMemoryRAG:
                                "last response", "before", "that", "those", "it", "them"]
         text_keywords = ["data", "list", "table", "dataset", "text", "write", "create content"]
         image_keywords = ["image", "picture", "photo", "draw", "visual", "art", "illustration"]
+
+        content_question_patterns = ["what is", "how many", "tell me about", "analyze", "calculate", "summarize", "find", "list", "show me", "what are", "which"]
         
         query_lower = query.lower()
         
@@ -132,6 +133,19 @@ class EnhancedMemoryRAG:
         conversation_count = sum(1 for kw in conversation_keywords if kw in query_lower)
         text_count = sum(1 for kw in text_keywords if kw in query_lower)
         image_count = sum(1 for kw in image_keywords if kw in query_lower)
+
+        has_content_question = any(pattern in query.lower() for pattern in content_question_patterns)
+
+        if has_content_question:
+            memory_result = self.search_data_memory(query)
+            if memory_result["success"]:
+                return {
+                    "query_type": "content_question",
+                    "memory_focus": memory_result["top_result"]["type"],
+                    "is_followup": True,
+                    "confidence": 0.85,
+                    "explanation": "Query appears to be asking about the content of previously generated data."
+                }
         
         # Check for conversation reference first
         if conversation_count > 0 or has_relevant_conversation:
@@ -210,10 +224,20 @@ class EnhancedMemoryRAG:
                 "success": False,
                 "reason": "Conversation memory system unavailable"
             }
-        
+    
         try:
-            conversations = self.conversation_memory.search_conversation_history(query, limit=2)
-            
+            # Check if this is the first interaction
+            try:
+                conversations = self.conversation_memory.search_conversation_history(query, limit=2)
+            except Exception as e:
+                print(f"Error searching conversation history: {str(e)}")
+                # If there's an error with searching (possibly no conversations yet)
+                return {
+                    "success": False,
+                    "reason": "No conversation history available yet",
+                    "error": str(e)
+                }
+        
             if conversations and len(conversations) > 0:
                 return {
                     "success": True,
@@ -235,35 +259,42 @@ class EnhancedMemoryRAG:
     def answer_with_conversation_context(self, query: str) -> str:
         """Generate an answer that incorporates conversation history"""
         context_result = self.retrieve_conversation_context(query)
-        
+    
         if not context_result["success"]:
             # No relevant conversation, try data memory
             memory_result = self.search_data_memory(query)
             if memory_result["success"]:
                 return self.answer_memory_query(query)
             else:
-                return f"I don't have any relevant conversation history or memory to answer your query."
-        
+                # Handle the case where this is the first interaction
+                if "No relevant conversation history found" in context_result.get("reason", ""):
+                    return "I don't have any previous conversations stored yet. This appears to be our first interaction. Feel free to ask me something else, and I'll remember our conversation for future reference."
+                return f"I don't have any relevant conversation history or memory to answer your query about previous interactions."
+    
         # We have relevant conversation history
         conversations = context_result["conversations"]
-        
+    
+        # Make sure we have at least one conversation before trying to access it
+        if not conversations or len(conversations) == 0:
+            return "I found some conversation records, but couldn't retrieve their content. Let's start fresh with a new topic."
+    
         # Extract the most relevant conversation
         conv = conversations[0]
         prev_query = conv["query"]
         prev_response = conv["response"]
-        
+    
         # Generate a response that incorporates the previous conversation
         prompt = f"""
         User previously asked: "{prev_query}"
-        
+    
         My previous response was: "{prev_response}"
-        
+    
         Now the user is asking a follow-up question: "{query}"
-        
+    
         Provide a helpful response that maintains continuity with the previous conversation.
         If this isn't actually a follow-up question, just answer it directly.
         """
-        
+    
         try:
             response = self.llm.generate_content(prompt)
             return response.text
@@ -271,8 +302,7 @@ class EnhancedMemoryRAG:
             print(f"Error generating response with conversation context: {str(e)}")
             # Fall back to the previous response as context
             return f"Based on our previous conversation about '{prev_query}', I can tell you that {prev_response[:200]}... Does that help answer your current question?"
-    
-    # [Keep existing methods from memory_rag.py]
+
     def query_knowledge_base(self, query: str) -> str:
         """Query the static knowledge base"""
         # Same as before, unchanged
@@ -365,10 +395,47 @@ class EnhancedMemoryRAG:
                 "results": []
             }
     
-    def answer_memory_query(self, query: str) -> str:
-        """Generate a comprehensive answer to a memory-related query"""
-        # Same as before, unchanged
+        def answer_memory_query(self, query: str) -> str:
+            """Generate a comprehensive answer to a memory-related query"""
+            memory_result = self.search_data_memory(query)
+    
+            if not memory_result["success"]:
+                # No memory matches
+                # Existing code for handling no matches...
+    
+            # We found memory matches
+            if memory_result["query_type"] == "specific_id":
+                # User asked about specific memory ID
+                memory_data = memory_result["results"][0]
         
+                # Detect if this is a general metadata question or a content-specific question
+                content_question_patterns = ["what is", "how many", "analyze", "calculate", "find"]
+                is_content_question = any(pattern in query.lower() for pattern in content_question_patterns)
+        
+                if is_content_question and memory_data.get("type") == "text" and "data" in memory_data:
+                    # This is a question about the content of the data
+                    actual_data = memory_data["data"]
+                    prompt = f"""
+                    Based on this data: {json.dumps(actual_data)}
+            
+                    Answer this question about the data: {query}
+            
+                    Provide a detailed analysis based only on the given data.
+                    """
+            
+                    try:
+                        response = self.llm.generate_content(prompt)
+                        return f"Based on the data '{memory_data.get('description')}', {response.text}"
+                    except Exception as e:
+                        print(f"Error generating content-based response: {str(e)}")
+                        # Fall back to metadata summary
+                        return f"Here's the information about memory {memory_data.get('id', 'unknown')}:\n\n{memory_result['summary']}"
+                else:
+                    # Metadata question - use existing code
+                    summary = memory_result["summary"]
+                    return f"Here's the information about memory {memory_data.get('id', 'unknown')}:\n\n{summary}"
+
+
     def enhance_generation_query(self, query: str, query_type: str) -> Dict:
         """Enhance a generation query with relevant knowledge, memory context, and conversation history"""
         knowledge_context = self.query_knowledge_base(query)
