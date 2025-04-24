@@ -169,6 +169,11 @@ def route_to_text_agent(state: RouterState):
         if rag_enabled and rag_context:
             enhanced_query = f"{user_query}\n\nAdditional context: {rag_context}"
         
+        # Retrieve the last N interactions
+        last_interactions = rag_system.conversation_memory.get_last_n_interactions(3)
+        if last_interactions:
+            enhanced_query += f"\n\nLast interactions: {json.dumps(last_interactions)}"
+        
         result = text_gen.agent.invoke({"user_query": enhanced_query})
         
         output = f"""
@@ -198,6 +203,11 @@ def route_to_image_agent(state: RouterState):
         enhanced_query = user_query
         if rag_enabled and rag_context:
             enhanced_query = f"{user_query}\n\nAdditional context: {rag_context}"
+        
+        # Retrieve the last N interactions
+        last_interactions = rag_system.conversation_memory.get_last_n_interactions(3)
+        if last_interactions:
+            enhanced_query += f"\n\nLast interactions: {json.dumps(last_interactions)}"
         
         result = image_gen.agent.invoke({"user_query": enhanced_query})
         

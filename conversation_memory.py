@@ -39,6 +39,9 @@ class ConversationMemory:
             # Create summary for embedding - this is what will be used for retrieval
             summary = f"Q: {user_query} A: {system_response[:200]}..."
             
+            # Retrieve the last N interactions
+            last_interactions = self.get_last_n_interactions(3)
+            
             # Store full interaction to disk
             data_path = f"./conversation_history/{memory_id}.json"
             with open(data_path, "w") as f:
@@ -47,7 +50,8 @@ class ConversationMemory:
                     "agent_type": agent_type,
                     "query": user_query,
                     "response": system_response,
-                    "timestamp": timestamp
+                    "timestamp": timestamp,
+                    "last_interactions": last_interactions
                 }, f, indent=2)
             
             # Store in vector DB for search
@@ -113,4 +117,48 @@ class ConversationMemory:
             
         except Exception as e:
             print(f"Error searching conversation history: {str(e)}")
+            return []
+
+    def get_last_n_interactions(self, n: int) -> List[Dict]:
+        """Retrieve the last N interactions from the conversation history"""
+        if not self.db:
+            return []
+        
+        try:
+            # Retrieve the last N interactions based on timestamp
+            results = self.conversation_collection.get(
+                sort_by="timestamp",
+                sort_order="desc",
+                limit=n
+            )
+            
+            interactions = []
+            
+            if results and len(results['ids']) > 0:
+                for i, conv_id in enumerate(results['ids']):
+                    metadata = results['metadatas'][i]
+                    
+                    # Load full conversation data from disk
+                    path = metadata.get("path", "")
+                    if os.path.exists(path):
+                        with open(path, "r") as f:
+                            conversation_data = json.load(f)
+                    else:
+                        conversation_data = {
+                            "query": metadata.get("query", ""),
+                            "response": "Full response not available"
+                        }
+                    
+                    interactions.append({
+                        "id": conv_id,
+                        "query": conversation_data.get("query", ""),
+                        "response": conversation_data.get("response", ""),
+                        "agent_type": metadata.get("agent_type", "unknown"),
+                        "timestamp": metadata.get("timestamp", "")
+                    })
+            
+            return interactions
+            
+        except Exception as e:
+            print(f"Error retrieving last {n} interactions: {str(e)}")
             return []

@@ -51,6 +51,9 @@ class GeneratedDataMemory:
                 sample_str = ", ".join([f"{k}: {v}" for k, v in sample.items()])
                 summary += f"Sample: {sample_str}"
             
+            # Retrieve the last N generated data entries
+            last_entries = self.get_last_n_generated_data_entries(3)
+            
             # Store full data to disk
             data_path = f"./output_history/{memory_id}.json"
             with open(data_path, "w") as f:
@@ -59,7 +62,8 @@ class GeneratedDataMemory:
                     "description": description,
                     "schema": schema,
                     "data": generated_data,
-                    "timestamp": timestamp
+                    "timestamp": timestamp,
+                    "last_entries": last_entries
                 }, f, indent=2)
             
             # Store in vector DB for search
@@ -98,6 +102,9 @@ class GeneratedDataMemory:
             if prompts and len(prompts) > 0:
                 summary += f"Examples: {prompts[0]}"
             
+            # Retrieve the last N generated data entries
+            last_entries = self.get_last_n_generated_data_entries(3)
+            
             # Store full data to disk
             data_path = f"./output_history/{memory_id}.json"
             with open(data_path, "w") as f:
@@ -106,7 +113,8 @@ class GeneratedDataMemory:
                     "description": description,
                     "prompts": prompts,
                     "image_paths": image_paths,
-                    "timestamp": timestamp
+                    "timestamp": timestamp,
+                    "last_entries": last_entries
                 }, f, indent=2)
             
             # Store in vector DB for search
@@ -305,3 +313,46 @@ class GeneratedDataMemory:
             return summary
         
         return f"Unknown data type: {memory_type}\nDescription: {description}"
+    
+    def get_last_n_generated_data_entries(self, n: int) -> List[Dict]:
+        """Retrieve the last N generated data entries from the memory"""
+        if not self.db:
+            return []
+        
+        try:
+            # Retrieve the last N entries based on timestamp
+            results = self.text_collection.get(
+                sort_by="timestamp",
+                sort_order="desc",
+                limit=n
+            )
+            
+            entries = []
+            
+            if results and len(results['ids']) > 0:
+                for i, entry_id in enumerate(results['ids']):
+                    metadata = results['metadatas'][i]
+                    
+                    # Load full data from disk
+                    path = metadata.get("path", "")
+                    if os.path.exists(path):
+                        with open(path, "r") as f:
+                            entry_data = json.load(f)
+                    else:
+                        entry_data = {
+                            "description": metadata.get("description", ""),
+                            "data": "Full data not available"
+                        }
+                    
+                    entries.append({
+                        "id": entry_id,
+                        "description": entry_data.get("description", ""),
+                        "data": entry_data.get("data", ""),
+                        "timestamp": metadata.get("timestamp", "")
+                    })
+            
+            return entries
+            
+        except Exception as e:
+            print(f"Error retrieving last {n} generated data entries: {str(e)}")
+            return []
