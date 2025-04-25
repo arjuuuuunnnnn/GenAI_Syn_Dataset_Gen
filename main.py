@@ -1,3 +1,5 @@
+# Add this code to main2.py
+
 from typing import TypedDict, Literal
 from langgraph.graph import StateGraph, END
 import google.generativeai as genai
@@ -100,6 +102,69 @@ def analyze_query_intent(state: RouterState):
             "routing_reason": f"Error analyzing query intent: {str(e)}"
         }
 
+def process_memory_retrieval(state: RouterState):
+    """Search memory system for relevant context and process with Gemini"""
+    user_query = state["user_query"]
+    print("\n🔍 Retrieving relevant memory context...")
+    
+    memory_context = ""
+    search_results = []
+    
+    try:
+        if not memory_system:
+            memory_context = "Memory system not available."
+        else:
+            # Remove "please" from the query for better search results
+            search_query = user_query.lower().replace("please", "", 1).strip()
+            
+            # Search memory for relevant results - using the search_memory method directly
+            # This method already handles the embedding internally
+            search_results = memory_system.search_memory(search_query, limit=3)
+            
+            if not search_results:
+                memory_context = "No relevant memory entries found."
+            else:
+                memory_context = "Found relevant memory entries:\n\n"
+                
+                for i, result in enumerate(search_results):
+                    # Get detailed data for each result
+                    memory_data = memory_system.get_data_by_id(result["id"])
+                    if memory_data:
+                        summary = memory_system.get_human_readable_memory_summary(memory_data)
+                        memory_context += f"--- Memory Entry {i+1} ---\n{summary}\n\n"
+        
+        print(f"Retrieved {len(search_results) if search_results else 0} memory entries")
+        
+        # Process with Gemini using the memory context
+        prompt = f"""
+        The user has asked:
+        "{user_query}"
+        
+        Here is the relevant context from previous interactions:
+        {memory_context}
+        
+        Based on this context, please provide a helpful response to the user's query.
+        Include specific details from the memory entries when relevant.
+        If the memory doesn't contain relevant information, acknowledge this and provide the best response possible.
+        """
+        
+        response = router_model.generate_content(prompt)
+        
+        output = f"""
+        ====== MEMORY-ASSISTED RESPONSE ======
+        
+        {response.text}
+        """
+        
+        return {"memory_context": memory_context, "output": output}
+        
+    except Exception as e:
+        error_message = f"Error processing memory request: {str(e)}"
+        print(f"⚠️ {error_message}")
+        return {
+            "memory_context": error_message,
+            "output": f"I encountered an error while retrieving memory: {str(e)}\n\nPlease try again with a different query."
+        }
 
 def route_to_text_agent(state: RouterState):
     """Send the query to the text data generation agent"""
@@ -184,104 +249,6 @@ def handle_unknown_query(state: RouterState):
     except Exception as e:
         return {
             "output": f"Error while processing with general handler: {str(e)}\n\nOriginal routing reason: {reason}"
-        }
-
-def handle_unknown_query(state: RouterState):
-    """Handle queries that couldn't be clearly classified"""
-    user_query = state["user_query"]
-    reason = state["routing_reason"]
-    
-    print(f"\n❓ Handling UNKNOWN query type...")
-    print(f"Reason: {reason}")
-    
-    try:
-        # Default to using Gemini for general queries
-        response = router_model.generate_content(f"""
-        The user's query could not be clearly identified as text or image generation.
-        Please respond helpfully to this query: {user_query}
-        
-        Include details about the system's capabilities:
-        - Can generate text datasets with fields and records
-        - Can create image visualizations and artwork
-        """)
-        
-        output = f"""
-        ====== GENERAL RESPONSE ======
-        
-        ROUTING REASON: {reason}
-        
-        {response.text}
-        
-        TIP: For better results, try specifying if you want to generate text data or create images.
-        """
-        
-        return {"output": output}
-    except Exception as e:
-        return {
-            "output": f"Error while processing with general handler: {str(e)}\n\nOriginal routing reason: {reason}"
-        }
-
-
-def process_memory_retrieval(state: RouterState):
-    """Search memory system for relevant context and process with Gemini"""
-    user_query = state["user_query"]
-    print("\n🔍 Retrieving relevant memory context...")
-    
-    memory_context = ""
-    
-    try:
-        if not memory_system:
-            memory_context = "Memory system not available."
-        else:
-            # Remove "please" from the query for better search results
-            search_query = user_query.lower().replace("please", "", 1).strip()
-            
-            # Search memory for relevant results
-            search_results = memory_system.search_memory(search_query, limit=3)
-            
-            if not search_results:
-                memory_context = "No relevant memory entries found."
-            else:
-                memory_context = "Found relevant memory entries:\n\n"
-                
-                for i, result in enumerate(search_results):
-                    # Get detailed data for each result
-                    memory_data = memory_system.get_data_by_id(result["id"])
-                    if memory_data:
-                        summary = memory_system.get_human_readable_memory_summary(memory_data)
-                        memory_context += f"--- Memory Entry {i+1} ---\n{summary}\n\n"
-        
-        print(f"Retrieved {len(search_results) if memory_system and search_results else 0} memory entries")
-        
-        # Process with Gemini using the memory context
-        prompt = f"""
-        The user has asked:
-        "{user_query}"
-        
-        Here is the relevant context from previous interactions:
-        {memory_context}
-        
-        Based on this context, please provide a helpful response to the user's query.
-        Include specific details from the memory entries when relevant.
-        If the memory doesn't contain relevant information, acknowledge this and provide the best response possible.
-        """
-        
-        response = router_model.generate_content(prompt)
-        
-        output = f"""
-        ====== MEMORY-ASSISTED RESPONSE ======
-        
-        {response.text}
-        """
-        
-        return {"memory_context": memory_context, "output": output}
-        
-    except Exception as e:
-        error_message = f"Error processing memory request: {str(e)}"
-        print(f"⚠️ {error_message}")
-        return {
-            "memory_context": error_message,
-            "output": f"I encountered an error while retrieving memory: {str(e)}\n\nPlease try again with a different query."
         }
 
 def route_based_on_type(state: RouterState):
