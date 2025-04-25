@@ -214,16 +214,19 @@ def store_to_memory(state: AgentState):
         
         print("\n[DEBUG] Storing dataset to memory system")
         
-        if memory_system:
+        if memory_system and dataset:
             memory_id = memory_system.store_text_data(
                 description=description,
-                schema=schema,
-                generated_data=dataset
+                generated_data=dataset,
+                schema=schema
             )
             print(f"[DEBUG] Dataset stored with ID: {memory_id}")
             return {"memory_id": memory_id}
         else:
-            print("[WARNING] Memory system not available")
+            if not memory_system:
+                print("[WARNING] Memory system not available")
+            if not dataset:
+                print("[WARNING] No dataset to store")
             return {"memory_id": None}
     except Exception as e:
         print(f"[ERROR] in store_to_memory: {str(e)}")
