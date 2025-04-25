@@ -15,10 +15,19 @@ class GeneratedDataMemory:
         
         print("Initializing data memory system...")
         try:
-            self.embed_model = SentenceTransformer('all-MiniLM-L6-v2')
+            # self.embed_model = SentenceTransformer('all-MiniLM-L6-v2')
             self.db = chromadb.PersistentClient(path=persist_dir)
-            self.text_collection = self.db.get_or_create_collection("text_memory")
-            self.image_collection = self.db.get_or_create_collection("image_memory")
+            embedding_function = chromadb.utils.embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name="all-MiniLM-L6-v2"
+            )
+            self.text_collection = self.db.get_or_create_collection(
+                name="text_memory",
+                embedding_function=embedding_function
+            )
+            self.image_collection = self.db.get_or_create_collection(
+                name="image_memory",
+                embedding_function=embedding_function
+                )
             
             print("Memory system initialized successfully.")
         except Exception as e:
