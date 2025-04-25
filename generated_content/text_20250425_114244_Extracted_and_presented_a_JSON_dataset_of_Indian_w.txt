@@ -1,0 +1,39 @@
+# Generated Text Content
+# Query: which of the indian atheletes participated and won medals in wrestling
+# Summary: Extracted and presented a JSON dataset of Indian wrestlers who have won medals at the Olympics, based on the existing dataset.
+# Date: 2025-04-25 11:42:44
+
+```json
+[
+  {
+    "indian_athlete_name": "Khashaba Dadasaheb Jadhav",
+    "sport_participated_in_olympics": "Wrestling",
+    "medal_won": "Bronze"
+  },
+  {
+    "indian_athlete_name": "Sushil Kumar",
+    "sport_participated_in_olympics": "Wrestling",
+    "medal_won": "Bronze"
+  },
+  {
+    "indian_athlete_name": "Sushil Kumar",
+    "sport_participated_in_olympics": "Wrestling",
+    "medal_won": "Silver"
+  },
+  {
+    "indian_athlete_name": "Yogeshwar Dutt",
+    "sport_participated_in_olympics": "Wrestling",
+    "medal_won": "Bronze"
+  },
+  {
+    "indian_athlete_name": "Sakshi Malik",
+    "sport_participated_in_olympics": "Wrestling",
+    "medal_won": "Bronze"
+  },
+  {
+    "indian_athlete_name": "Bajrang Punia",
+    "sport_participated_in_olympics": "Wrestling",
+    "medal_won": "Bronze"
+  }
+]
+```

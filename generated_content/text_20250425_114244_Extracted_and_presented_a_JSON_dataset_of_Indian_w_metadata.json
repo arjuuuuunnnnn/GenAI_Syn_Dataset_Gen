@@ -1,0 +1,6 @@
+{
+  "query": "which of the indian atheletes participated and won medals in wrestling",
+  "summary": "Extracted and presented a JSON dataset of Indian wrestlers who have won medals at the Olympics, based on the existing dataset.",
+  "timestamp": "2025-04-25T11:42:44.553248",
+  "format": "txt"
+}

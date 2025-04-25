@@ -1,0 +1,85 @@
+{
+  "metadata": {
+    "query": "generate a dataset with columns indian athlete name,sport participated in olympics and the medal won ",
+    "summary": "Generated a JSON dataset of Indian athletes who have won medals at the Olympics, including their name, sport, and medal type.",
+    "timestamp": "2025-04-25T11:42:07.681032",
+    "format": "json"
+  },
+  "data": [
+    {
+      "indian_athlete_name": "Neeraj Chopra",
+      "sport_participated_in_olympics": "Javelin Throw",
+      "medal_won": "Gold"
+    },
+    {
+      "indian_athlete_name": "Abhinav Bindra",
+      "sport_participated_in_olympics": "Shooting",
+      "medal_won": "Gold"
+    },
+    {
+      "indian_athlete_name": "Mirabai Chanu",
+      "sport_participated_in_olympics": "Weightlifting",
+      "medal_won": "Silver"
+    },
+    {
+      "indian_athlete_name": "Ravi Kumar Dahiya",
+      "sport_participated_in_olympics": "Wrestling",
+      "medal_won": "Silver"
+    },
+    {
+      "indian_athlete_name": "PV Sindhu",
+      "sport_participated_in_olympics": "Badminton",
+      "medal_won": "Silver"
+    },
+    {
+      "indian_athlete_name": "Rajyavardhan Singh Rathore",
+      "sport_participated_in_olympics": "Shooting",
+      "medal_won": "Silver"
+    },
+    {
+      "indian_athlete_name": "Vijay Kumar",
+      "sport_participated_in_olympics": "Shooting",
+      "medal_won": "Silver"
+    },
+    {
+      "indian_athlete_name": "Karnam Malleswari",
+      "sport_participated_in_olympics": "Weightlifting",
+      "medal_won": "Bronze"
+    },
+    {
+      "indian_athlete_name": "Leander Paes",
+      "sport_participated_in_olympics": "Tennis",
+      "medal_won": "Bronze"
+    },
+    {
+      "indian_athlete_name": "Sakshi Malik",
+      "sport_participated_in_olympics": "Wrestling",
+      "medal_won": "Bronze"
+    },
+    {
+      "indian_athlete_name": "Saina Nehwal",
+      "sport_participated_in_olympics": "Badminton",
+      "medal_won": "Bronze"
+    },
+    {
+      "indian_athlete_name": "Gagan Narang",
+      "sport_participated_in_olympics": "Shooting",
+      "medal_won": "Bronze"
+    },
+    {
+      "indian_athlete_name": "Yogeshwar Dutt",
+      "sport_participated_in_olympics": "Wrestling",
+      "medal_won": "Bronze"
+    },
+    {
+      "indian_athlete_name": "Bajrang Punia",
+      "sport_participated_in_olympics": "Wrestling",
+      "medal_won": "Bronze"
+    },
+    {
+      "indian_athlete_name": "Indian Men's Hockey Team",
+      "sport_participated_in_olympics": "Hockey",
+      "medal_won": "Bronze"
+    }
+  ]
+}
